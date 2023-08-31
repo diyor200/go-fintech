@@ -9,33 +9,7 @@ import (
 	"time"
 )
 
-func Login(username, pass string) map[string]interface{} {
-	//Connect to db
-	db := helpers.ConnectDB()
-	defer db.Close()
-	user := &interfaces.User{}
-	if db.Where("username=?", username).First(&user).RecordNotFound() {
-		return map[string]interface{}{"message": "User not found"}
-	}
-
-	//	Verify password
-	passErr := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(pass))
-	if errors.Is(passErr, bcrypt.ErrMismatchedHashAndPassword) && passErr != nil {
-		return map[string]interface{}{"message": "Wrong password"}
-	}
-
-	// Find account to the user
-	var accounts []interfaces.ResponseAccount{}
-	db.Table("accounts").Select("id, name, balance").Where("user_id=?", user.ID).Scan(&accounts)
-
-	//Setup response
-	responseUser := interfaces.ResponseUser{
-		ID:       user.ID,
-		Email:    user.Email,
-		Username: user.Username,
-		Accounts: accounts,
-	}
-
+func prepareToken(user *interfaces.User) string {
 	//	Sign token
 	tokenContent := jwt.MapClaims{
 		"user_id": user.ID,
@@ -45,10 +19,108 @@ func Login(username, pass string) map[string]interface{} {
 	jwtToken := jwt.NewWithClaims(jwt.GetSigningMethod("HS256"), tokenContent)
 	token, err := jwtToken.SignedString([]byte("TokenPassword"))
 	helpers.HandleErr(err)
+	return token
+}
 
+func prepareResponse(user *interfaces.User, accounts []interfaces.ResponseAccount, withToken bool) map[string]interface{} {
+	//Setup response
+	responseUser := interfaces.ResponseUser{
+		ID:       user.ID,
+		Email:    user.Email,
+		Username: user.Username,
+		Accounts: accounts,
+	}
 	//	Prepare response
 	var response = map[string]interface{}{"message": "all is fine"}
-	response["jwt"] = token
+	if withToken {
+		var token = prepareToken(user)
+		response["jwt"] = token
+	}
 	response["data"] = responseUser
 	return response
+}
+
+func Login(username, pass string) map[string]interface{} {
+	valid := helpers.Validation(
+		[]interfaces.Validation{
+			{Value: username, Valid: "username"},
+			{Value: pass, Valid: "password"},
+		})
+	if valid {
+		//Connect to db
+		db := helpers.ConnectDB()
+		defer db.Close()
+		user := &interfaces.User{}
+		if db.Where("username=?", username).First(&user).RecordNotFound() {
+			return map[string]interface{}{"message": "User not found"}
+		}
+
+		//	Verify password
+		passErr := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(pass))
+		if errors.Is(passErr, bcrypt.ErrMismatchedHashAndPassword) && passErr != nil {
+			return map[string]interface{}{"message": "Wrong password"}
+		}
+
+		// Find account to the user
+		var accounts []interfaces.ResponseAccount
+		db.Table("accounts").Select("id, name, balance").Where("user_id=?", user.ID).Scan(&accounts)
+
+		var response = prepareResponse(user, accounts, true)
+		return response
+	} else {
+		return map[string]interface{}{"message": "not valid values"}
+	}
+
+}
+
+func Register(username, email, password string) map[string]interface{} {
+	valid := helpers.Validation(
+		[]interfaces.Validation{
+			{Value: username, Valid: "username"},
+			{Value: email, Valid: "email"},
+			{Value: password, Valid: "password"},
+		})
+	if valid {
+		//	connect DB
+		db := helpers.ConnectDB()
+		generatedPassword := helpers.HashAndSalt([]byte(password))
+		user := &interfaces.User{Username: username, Email: email, Password: generatedPassword}
+		db.Create(&user)
+
+		account := interfaces.Account{Type: "Daily Account", Name: username + "'s account",
+			Balance: uint(1000), UserID: user.ID}
+		db.Create(&account)
+		defer db.Close()
+
+		accounts := []interfaces.ResponseAccount{}
+		respAccount := interfaces.ResponseAccount{ID: account.ID, Name: account.Name, Balance: int(account.Balance)}
+		accounts = append(accounts, respAccount)
+		var response = prepareResponse(user, accounts, true)
+
+		return response
+	} else {
+		return map[string]interface{}{"message": "not valid values"}
+	}
+}
+
+func GetUser(id, jwt string) map[string]interface{} {
+	isValid := helpers.ValidToken(id, jwt)
+
+	if isValid {
+		db := helpers.ConnectDB()
+		user := &interfaces.User{}
+		if db.Where("id=?", id).First(&user).RecordNotFound() {
+			return map[string]interface{}{"message": "User not found"}
+		}
+		// Find account to the user
+		var accounts []interfaces.ResponseAccount
+		db.Table("accounts").Select("id, name, balance").Where("user_id=?", user.ID).Scan(&accounts)
+		defer db.Close()
+
+		var response = prepareResponse(user, accounts, false)
+
+		return response
+	} else {
+		return map[string]interface{}{"message": "not valid token"}
+	}
 }

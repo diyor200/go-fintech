@@ -1,7 +1,10 @@
 package main
 
-import "github.com/diyor200/go-fintech/migrations"
+import (
+	"github.com/diyor200/go-fintech/api"
+)
 
 func main() {
-	migrations.Migrate()
+	//migrations.Migrate()
+	api.StartAPI()
 }
