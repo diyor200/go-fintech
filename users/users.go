@@ -2,6 +2,7 @@ package users
 
 import (
 	"errors"
+	"github.com/diyor200/go-fintech/database"
 	"github.com/diyor200/go-fintech/helpers"
 	"github.com/diyor200/go-fintech/interfaces"
 	"github.com/golang-jwt/jwt/v5"
@@ -47,11 +48,8 @@ func Login(username, pass string) map[string]interface{} {
 			{Value: pass, Valid: "password"},
 		})
 	if valid {
-		//Connect to db
-		db := helpers.ConnectDB()
-		defer db.Close()
 		user := &interfaces.User{}
-		if db.Where("username=?", username).First(&user).RecordNotFound() {
+		if database.DB.Where("username=?", username).First(&user).RecordNotFound() {
 			return map[string]interface{}{"message": "User not found"}
 		}
 
@@ -63,7 +61,7 @@ func Login(username, pass string) map[string]interface{} {
 
 		// Find account to the user
 		var accounts []interfaces.ResponseAccount
-		db.Table("accounts").Select("id, name, balance").Where("user_id=?", user.ID).Scan(&accounts)
+		database.DB.Table("accounts").Select("id, name, balance").Where("user_id=?", user.ID).Scan(&accounts)
 
 		var response = prepareResponse(user, accounts, true)
 		return response
@@ -81,16 +79,13 @@ func Register(username, email, password string) map[string]interface{} {
 			{Value: password, Valid: "password"},
 		})
 	if valid {
-		//	connect DB
-		db := helpers.ConnectDB()
 		generatedPassword := helpers.HashAndSalt([]byte(password))
 		user := &interfaces.User{Username: username, Email: email, Password: generatedPassword}
-		db.Create(&user)
+		database.DB.Create(&user)
 
 		account := interfaces.Account{Type: "Daily Account", Name: username + "'s account",
 			Balance: uint(1000), UserID: user.ID}
-		db.Create(&account)
-		defer db.Close()
+		database.DB.Create(&account)
 
 		accounts := []interfaces.ResponseAccount{}
 		respAccount := interfaces.ResponseAccount{ID: account.ID, Name: account.Name, Balance: int(account.Balance)}
@@ -107,15 +102,14 @@ func GetUser(id, jwt string) map[string]interface{} {
 	isValid := helpers.ValidToken(id, jwt)
 
 	if isValid {
-		db := helpers.ConnectDB()
 		user := &interfaces.User{}
-		if db.Where("id=?", id).First(&user).RecordNotFound() {
+		if database.DB.Where("id=?", id).First(&user).RecordNotFound() {
 			return map[string]interface{}{"message": "User not found"}
 		}
 		// Find account to the user
 		var accounts []interfaces.ResponseAccount
-		db.Table("accounts").Select("id, name, balance").Where("user_id=?", user.ID).Scan(&accounts)
-		defer db.Close()
+		database.DB.Table("accounts").Select("id, name, balance").Where("user_id=?", user.ID).Scan(&accounts)
+		defer database.DB.Close()
 
 		var response = prepareResponse(user, accounts, false)
 

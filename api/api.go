@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/diyor200/go-fintech/helpers"
-	"github.com/diyor200/go-fintech/interfaces"
+	"github.com/diyor200/go-fintech/useraccounts"
 	"github.com/diyor200/go-fintech/users"
 	"github.com/gorilla/mux"
 	"io"
@@ -21,6 +21,11 @@ type Register struct {
 	Username, Email, Password string
 }
 
+type TransactionBody struct {
+	UserID, From, To uint
+	Amount           int
+}
+
 func readBody(r *http.Request) []byte {
 	body, err := io.ReadAll(r.Body)
 	helpers.HandleErr(err)
@@ -32,9 +37,7 @@ func apiResponse(call map[string]interface{}, w http.ResponseWriter) {
 		resp := call
 		json.NewEncoder(w).Encode(&resp)
 	} else {
-		resp := interfaces.ErrResponse{
-			Message: "Wrong username or password",
-		}
+		resp := call
 		json.NewEncoder(w).Encode(&resp)
 	}
 }
@@ -76,11 +79,24 @@ func getUser(w http.ResponseWriter, r *http.Request) {
 	apiResponse(user, w)
 }
 
+func transaction(w http.ResponseWriter, r *http.Request) {
+	body := readBody(r)
+	auth := r.Header.Get("Authorization")
+	var formattedBody TransactionBody
+	err := json.Unmarshal(body, &formattedBody)
+	helpers.HandleErr(err)
+
+	transaction := useraccounts.Transaction(formattedBody.UserID, formattedBody.From,
+		formattedBody.To, formattedBody.Amount, auth)
+	apiResponse(transaction, w)
+}
+
 func StartAPI() {
 	router := mux.NewRouter()
 	router.Use(helpers.PanicHandler)
 	router.HandleFunc("/login", login).Methods("POST")
 	router.HandleFunc("/register", register).Methods("POST")
+	router.HandleFunc("/transaction", transaction).Methods("POST")
 	router.HandleFunc("/users/{id}", getUser).Methods("GET")
 	fmt.Println("App is working on port :8888")
 	log.Fatal(http.ListenAndServe(":8888", router))

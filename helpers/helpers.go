@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"github.com/diyor200/go-fintech/interfaces"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"golang.org/x/crypto/bcrypt"
 	"log"
@@ -24,12 +23,6 @@ func HashAndSalt(pass []byte) string {
 	hashed, err := bcrypt.GenerateFromPassword(pass, bcrypt.MinCost)
 	HandleErr(err)
 	return string(hashed)
-}
-
-func ConnectDB() *gorm.DB {
-	db, err := gorm.Open("postgres", "host=127.0.0.1 port=5432 user=postgres password=2001 dbname=bankapp sslmode=disable")
-	HandleErr(err)
-	return db
 }
 
 func Validation(values []interfaces.Validation) bool {
