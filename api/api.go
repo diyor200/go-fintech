@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/diyor200/go-fintech/helpers"
+	"github.com/diyor200/go-fintech/transactions"
 	"github.com/diyor200/go-fintech/useraccounts"
 	"github.com/diyor200/go-fintech/users"
 	"github.com/gorilla/mux"
@@ -79,6 +80,15 @@ func getUser(w http.ResponseWriter, r *http.Request) {
 	apiResponse(user, w)
 }
 
+func getMyTransaction(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	userId := vars["userID"]
+	auth := r.Header.Get("Authorization")
+
+	transacs := transactions.GetMyTransactions(userId, auth)
+	apiResponse(transacs, w)
+}
+
 func transaction(w http.ResponseWriter, r *http.Request) {
 	body := readBody(r)
 	auth := r.Header.Get("Authorization")
@@ -97,7 +107,8 @@ func StartAPI() {
 	router.HandleFunc("/login", login).Methods("POST")
 	router.HandleFunc("/register", register).Methods("POST")
 	router.HandleFunc("/transaction", transaction).Methods("POST")
-	router.HandleFunc("/users/{id}", getUser).Methods("GET")
+	router.HandleFunc("/transaction/{id}", getMyTransaction).Methods("GET")
+	router.HandleFunc("/users/{userID}", getUser).Methods("GET")
 	fmt.Println("App is working on port :8888")
 	log.Fatal(http.ListenAndServe(":8888", router))
 }

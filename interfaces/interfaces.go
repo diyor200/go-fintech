@@ -30,6 +30,11 @@ type ResponseUser struct {
 	Accounts []ResponseAccount
 }
 
+type ResponseTransaction struct {
+	Idm, From, To uint
+	Amount        int
+}
+
 type Validation struct {
 	Value string
 	Valid string
